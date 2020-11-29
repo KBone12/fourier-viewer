@@ -2,9 +2,10 @@ import("../pkg/index.js").then(rust => {
   const WindowFunction = rust.WindowFunction;
   const FourierViewer = rust.FourierViewer;
 
+  const windowFunctionElement = document.getElementById("window_function");
+  const fftSizeElement = document.getElementById("fft_size");
+
   let viewer = null;
-  let windowFunction = WindowFunction.Rectangle;
-  let fftSize = 8192;
 
   document.getElementById("file").addEventListener("change", function () {
     const files = this.files;
@@ -21,23 +22,20 @@ import("../pkg/index.js").then(rust => {
     });
   }, false);
 
-  document.getElementById("window_function").addEventListener("change", event => {
-    if (event.target.value == "Blackman") {
-      windowFunction = WindowFunction.Blackman;
-    } else if (event.target.value == "Hamming") {
-      windowFunction = WindowFunction.Hamming;
-    } else if (event.target.value == "Hann") {
-      windowFunction = WindowFunction.Hann;
-    } else if (event.target.value == "Rectangle") {
-      windowFunction = WindowFunction.Rectangle;
+  function windowNameToWindowFunction(name) {
+    if (name == "Blackman") {
+      return WindowFunction.Blackman;
+    } else if (name == "Hamming") {
+      return WindowFunction.Hamming;
+    } else if (name == "Hann") {
+      return WindowFunction.Hann;
+    } else if (name == "Rectangle") {
+      return WindowFunction.Rectangle;
     } else {
       console.error("Illegal window function");
+      return null;
     }
-  });
-
-  document.getElementById("fft_size").addEventListener("change", event => {
-    fftSize = parseInt(event.target.value);
-  });
+  }
 
   document.getElementById("calculate").addEventListener("click", () => {
     if (viewer === null) {
@@ -49,6 +47,8 @@ import("../pkg/index.js").then(rust => {
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     peak_values.innerHTML = "Peak frequencies:&nbsp;";
 
+    let fftSize = parseInt(fftSizeElement.value);
+    let windowFunction = windowNameToWindowFunction(windowFunctionElement.value);
     viewer.run_fft(fftSize, windowFunction);
     const peak_frequencies = viewer.peak_frequencies(5);
     for (let i = 0; i < peak_frequencies.length; i += 1) {
