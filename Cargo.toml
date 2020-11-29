@@ -12,5 +12,11 @@ crate-type = ["cdylib"]
 lto = true
 
 [dependencies]
+plotters = "0.3.0"
+plotters-canvas = "0.3.0"
 rustfft = "4.0.0"
 wasm-bindgen = "0.2.68"
+web-sys = "0.3.45"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O2", "--enable-mutable-globals"]
