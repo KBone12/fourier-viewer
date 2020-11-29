@@ -3,6 +3,7 @@ import("../pkg/index.js").then(rust => {
 
   let audioData = null;
   let windowFunction = WindowFunction.Rectangle;
+  let fftSize = 2;
 
   document.getElementById("file").addEventListener("change", function () {
     const files = this.files;
@@ -12,6 +13,7 @@ import("../pkg/index.js").then(rust => {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     files[0].arrayBuffer().then(buffer => audioContext.decodeAudioData(buffer)).then(data => {
       audioData = data;
+      document.getElementById("fft_size").max = Math.max(Math.min(audioData.length, 1 << 16), 2);
       document.getElementById("calculate").click();
     }).catch(console.error).finally(() => {
       audioContext.close();
@@ -32,6 +34,10 @@ import("../pkg/index.js").then(rust => {
     }
   });
 
+  document.getElementById("fft_size").addEventListener("change", event => {
+    fftSize = parseInt(event.target.value);
+  });
+
   document.getElementById("calculate").addEventListener("click", () => {
     if (audioData === null) {
       return;
@@ -42,7 +48,6 @@ import("../pkg/index.js").then(rust => {
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     peak_values.innerHTML = "Peak frequencies:&nbsp;";
 
-    const fftSize = 1 << 16;
     const spectra = rust.run_fft(audioData.getChannelData(0), fftSize, windowFunction);
     const powers = rust.spectra_to_powers(spectra);
     const peak_indices = rust.peak_indices(powers.slice(0, powers.length / 2), 5);

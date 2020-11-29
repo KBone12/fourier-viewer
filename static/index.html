@@ -8,7 +8,7 @@
   <h1>Fourier Viewer</h1>
   <canvas width="800" height="600" id="canvas"></canvas>
   <p id="peak_values">Peak frequencies: </p>
-  <input type="file" accept="audio/*" id="file"/>
+  <input type="file" accept="audio/*" id="file" />
   <p>
   <label>Window function: 
     <select id="window_function">
@@ -18,6 +18,8 @@
       <option value="Rectangle" selected>Rectangle</input>
     </select>
   </label>
+  <label>FFT size: 
+    <input type="number" min="2" max="8192" value="8192" id="fft_size"/>
   </p>
   <button id="calculate">Calculate</button>
   <script src="index.js"></script>
