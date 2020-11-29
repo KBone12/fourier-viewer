@@ -40,14 +40,17 @@ import("../pkg/index.js").then(rust => {
     const peak_values = document.getElementById("peak_values");
 
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    peak_values.innerText = "Peak frequencies: ";
+    peak_values.innerHTML = "Peak frequencies:&nbsp;";
 
     const fftSize = 1 << 16;
     const spectra = rust.run_fft(audioData.getChannelData(0), fftSize, windowFunction);
     const powers = rust.spectra_to_powers(spectra);
     const peak_indices = rust.peak_indices(powers.slice(0, powers.length / 2), 5);
     for (let i = 0; i < peak_indices.length; i += 1) {
-      peak_values.innerText += "" + peak_indices[i] * (audioData.sampleRate / fftSize) + ", ";
+      peak_values.innerHTML += (peak_indices[i] * (audioData.sampleRate / fftSize)).toFixed(1);
+      if (i < peak_indices.length - 1) {
+        peak_values.innerHTML += ",&nbsp;";
+      }
     }
     rust.plot_power_spectra_to_canvas(canvas, powers, audioData.sampleRate);
   });
