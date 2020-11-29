@@ -3,7 +3,7 @@ import("../pkg/index.js").then(rust => {
 
   let audioData = null;
   let windowFunction = WindowFunction.Rectangle;
-  let fftSize = 2;
+  let fftSize = 8192;
 
   document.getElementById("file").addEventListener("change", function () {
     const files = this.files;
