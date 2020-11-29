@@ -3,10 +3,11 @@ use std::f32::consts::PI;
 use plotters::{
     chart::ChartBuilder,
     drawing::IntoDrawingArea,
+    element::Rectangle,
     series::LineSeries,
     style::{
-        colors::{BLUE, WHITE},
-        Color,
+        colors::{BLUE, GREEN, WHITE},
+        Color, ShapeStyle,
     },
 };
 use plotters_canvas::CanvasBackend;
@@ -86,16 +87,12 @@ impl FourierViewer {
 
     pub fn peak_frequencies(&self, num: usize) -> Option<Vec<f32>> {
         self.spectra.as_ref().and_then(|spectra| {
+            let df = self.sample_rate / spectra.len() as f32;
             let spectra: Vec<_> = spectra.iter().take(spectra.len() / 2).collect();
             let num = num.min(spectra.len());
             let mut tmp: Vec<_> = spectra.iter().map(|c| c.norm_sqr()).enumerate().collect();
             tmp.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("Contains NaN"));
-            Some(
-                tmp[..num]
-                    .iter()
-                    .map(|(i, _)| *i as f32 * self.sample_rate / spectra.len() as f32)
-                    .collect(),
-            )
+            Some(tmp[..num].iter().map(|(i, _)| *i as f32 * df).collect())
         })
     }
 
@@ -105,10 +102,56 @@ impl FourierViewer {
             .into_drawing_area();
         root.fill(&WHITE)
             .expect("Some errors have been occurred in the backend");
+        let areas = root.split_evenly((2, 1));
+        let time_area = &areas[0];
+        let frequency_area = &areas[1];
+
+        let audio_range = plotters::data::fitting_range(&self.audio_data);
+        let mut chart = ChartBuilder::on(&time_area)
+            .x_label_area_size(50)
+            .y_label_area_size(60)
+            .build_cartesian_2d(0..self.audio_data.len(), audio_range.clone())
+            .expect("Can't build a 2d Cartesian coordinate");
+        chart
+            .configure_mesh()
+            .x_labels(10)
+            .y_labels(10)
+            .disable_mesh()
+            .x_label_formatter(&|&v| format!("{:0.1}", v as f32 / self.sample_rate))
+            .y_label_formatter(&|v| format!("{:0.1}", v))
+            .x_desc("Time [s]")
+            .draw()
+            .expect("Can't draw axes");
+        chart
+            .draw_series(LineSeries::new(
+                self.audio_data.iter().enumerate().map(|(i, p)| (i, *p)),
+                BLUE.filled(),
+            ))
+            .expect("Can't draw a series");
+        chart
+            .plotting_area()
+            .draw(&Rectangle::new(
+                [
+                    (0, audio_range.start),
+                    (
+                        self.spectra
+                            .as_ref()
+                            .and_then(|spectra| Some(spectra.len()))
+                            .unwrap_or_default(),
+                        audio_range.end,
+                    ),
+                ],
+                ShapeStyle {
+                    color: GREEN.mix(0.3),
+                    filled: true,
+                    stroke_width: 1,
+                },
+            ))
+            .expect("Can't draw a rectangle");
         if let Some(spectra) = self.spectra.as_ref() {
             let powers: Vec<_> = spectra.iter().map(|c| c.norm_sqr()).collect();
             let df = self.sample_rate / powers.len() as f32;
-            let mut chart = ChartBuilder::on(&root)
+            let mut chart = ChartBuilder::on(&frequency_area)
                 .x_label_area_size(50)
                 .y_label_area_size(60)
                 .build_cartesian_2d(
