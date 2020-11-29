@@ -48,82 +48,104 @@ impl WindowFunction {
 }
 
 #[wasm_bindgen]
-pub fn run_fft(input: &[f32], size: usize, window_function: WindowFunction) -> Vec<f32> {
-    let mut planner = FFTplanner::<f32>::new(false);
-    let fft = planner.plan_fft(size);
-
-    let window = window_function.generate(size);
-    let mut input: Vec<_> = input
-        .iter()
-        .zip(window.iter())
-        .map(|(x, w)| x * w)
-        .collect();
-    input.resize(size, 0.0);
-    let mut input: Vec<_> = input.iter().map(|f| Complex::new(*f, 0.0)).collect();
-    let mut output = vec![Complex::zero(); size];
-    fft.process(&mut input, &mut output);
-    output.iter().flat_map(|c| vec![c.re, c.im]).collect()
+pub struct FourierViewer {
+    audio_data: Vec<f32>,
+    sample_rate: f32,
+    spectra: Option<Vec<Complex<f32>>>,
 }
 
 #[wasm_bindgen]
-pub fn spectra_to_powers(spectra: &[f32]) -> Vec<f32> {
-    spectra
-        .chunks_exact(2)
-        .map(|chunk| chunk[0] * chunk[0] + chunk[1] * chunk[1])
-        .collect()
-}
+impl FourierViewer {
+    #[wasm_bindgen(constructor)]
+    pub fn new(audio_data: &[f32], sample_rate: f32) -> Self {
+        Self {
+            audio_data: audio_data.to_vec(),
+            sample_rate,
+            spectra: None,
+        }
+    }
 
-#[wasm_bindgen]
-pub fn peak_indices(powers: &[f32], num: usize) -> Vec<usize> {
-    let mut tmp: Vec<_> = powers.iter().enumerate().collect();
-    tmp.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("Contains NaN"));
-    tmp[..num].iter().map(|(i, _)| *i).collect()
-}
+    pub fn run_fft(&mut self, size: usize, window_function: WindowFunction) {
+        let mut planner = FFTplanner::<f32>::new(false);
+        let fft = planner.plan_fft(size);
 
-#[wasm_bindgen]
-pub fn plot_power_spectra_to_canvas(canvas: HtmlCanvasElement, powers: &[f32], sample_rate: f32) {
-    let root = CanvasBackend::with_canvas_object(canvas)
-        .expect("Illegal canvas")
-        .into_drawing_area();
-    root.fill(&WHITE)
-        .expect("Some errors have been occurred in the backend");
-    let df = sample_rate / powers.len() as f32;
-    let mut chart = ChartBuilder::on(&root)
-        .x_label_area_size(50)
-        .y_label_area_size(60)
-        .build_cartesian_2d(
-            0..powers.len() / 2,
-            0.0..plotters::data::fitting_range(powers).end + 0.1,
-        )
-        .expect("Can't build a 2d Cartesian coordinate");
-    chart
-        .configure_mesh()
-        .x_labels(10)
-        .y_labels(10)
-        .disable_mesh()
-        .x_label_formatter(&|&v| {
-            format!(
-                "{:0.1}",
-                if v < (powers.len() + 1) / 2 {
-                    v as f32 * df
-                } else {
-                    -((powers.len() - v) as f32) * df
-                }
+        let window = window_function.generate(size.min(self.audio_data.len()));
+        let mut input: Vec<_> = self
+            .audio_data
+            .iter()
+            .take(size.min(self.audio_data.len()))
+            .zip(window.iter())
+            .map(|(x, w)| x * w)
+            .collect();
+        input.resize(size, 0.0);
+        let mut input: Vec<_> = input.iter().map(|f| Complex::new(*f, 0.0)).collect();
+        let mut output = vec![Complex::zero(); size];
+        fft.process(&mut input, &mut output);
+        self.spectra = Some(output);
+    }
+
+    pub fn peak_frequencies(&self, num: usize) -> Option<Vec<f32>> {
+        self.spectra.as_ref().and_then(|spectra| {
+            let spectra: Vec<_> = spectra.iter().take(spectra.len() / 2).collect();
+            let num = num.min(spectra.len());
+            let mut tmp: Vec<_> = spectra.iter().map(|c| c.norm_sqr()).enumerate().collect();
+            tmp.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("Contains NaN"));
+            Some(
+                tmp[..num]
+                    .iter()
+                    .map(|(i, _)| *i as f32 * self.sample_rate / spectra.len() as f32)
+                    .collect(),
             )
         })
-        .y_label_formatter(&|v| format!("{:e}", v))
-        .x_desc("Frequency [Hz]")
-        .y_desc("Power")
-        .draw()
-        .expect("Can't draw axes");
-    chart
-        .draw_series(LineSeries::new(
-            powers
-                .iter()
-                .take(powers.len() / 2)
-                .enumerate()
-                .map(|(i, p)| (i, *p)),
-            BLUE.filled(),
-        ))
-        .expect("Can't draw a series");
+    }
+
+    pub fn draw(&self, canvas: HtmlCanvasElement) {
+        let root = CanvasBackend::with_canvas_object(canvas)
+            .expect("Illegal canvas")
+            .into_drawing_area();
+        root.fill(&WHITE)
+            .expect("Some errors have been occurred in the backend");
+        if let Some(spectra) = self.spectra.as_ref() {
+            let powers: Vec<_> = spectra.iter().map(|c| c.norm_sqr()).collect();
+            let df = self.sample_rate / powers.len() as f32;
+            let mut chart = ChartBuilder::on(&root)
+                .x_label_area_size(50)
+                .y_label_area_size(60)
+                .build_cartesian_2d(
+                    0..powers.len() / 2,
+                    0.0..plotters::data::fitting_range(&powers).end + 0.1,
+                )
+                .expect("Can't build a 2d Cartesian coordinate");
+            chart
+                .configure_mesh()
+                .x_labels(10)
+                .y_labels(10)
+                .disable_mesh()
+                .x_label_formatter(&|&v| {
+                    format!(
+                        "{:0.1}",
+                        if v < (powers.len() + 1) / 2 {
+                            v as f32 * df
+                        } else {
+                            -((powers.len() - v) as f32) * df
+                        }
+                    )
+                })
+                .y_label_formatter(&|v| format!("{:e}", v))
+                .x_desc("Frequency [Hz]")
+                .y_desc("Power")
+                .draw()
+                .expect("Can't draw axes");
+            chart
+                .draw_series(LineSeries::new(
+                    powers
+                        .iter()
+                        .take(powers.len() / 2)
+                        .enumerate()
+                        .map(|(i, p)| (i, *p)),
+                    BLUE.filled(),
+                ))
+                .expect("Can't draw a series");
+        }
+    }
 }

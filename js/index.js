@@ -1,7 +1,8 @@
 import("../pkg/index.js").then(rust => {
   const WindowFunction = rust.WindowFunction;
+  const FourierViewer = rust.FourierViewer;
 
-  let audioData = null;
+  let viewer = null;
   let windowFunction = WindowFunction.Rectangle;
   let fftSize = 8192;
 
@@ -12,8 +13,8 @@ import("../pkg/index.js").then(rust => {
     }
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     files[0].arrayBuffer().then(buffer => audioContext.decodeAudioData(buffer)).then(data => {
-      audioData = data;
-      document.getElementById("fft_size").max = Math.max(Math.min(audioData.length, 1 << 16), 2);
+      viewer = new FourierViewer(data.getChannelData(0), data.sampleRate);
+      document.getElementById("fft_size").max = Math.max(Math.min(data.length, 1 << 16), 2);
       document.getElementById("calculate").click();
     }).catch(console.error).finally(() => {
       audioContext.close();
@@ -39,7 +40,7 @@ import("../pkg/index.js").then(rust => {
   });
 
   document.getElementById("calculate").addEventListener("click", () => {
-    if (audioData === null) {
+    if (viewer === null) {
       return;
     }
     const canvas = document.getElementById("canvas");
@@ -48,15 +49,14 @@ import("../pkg/index.js").then(rust => {
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     peak_values.innerHTML = "Peak frequencies:&nbsp;";
 
-    const spectra = rust.run_fft(audioData.getChannelData(0), fftSize, windowFunction);
-    const powers = rust.spectra_to_powers(spectra);
-    const peak_indices = rust.peak_indices(powers.slice(0, powers.length / 2), 5);
-    for (let i = 0; i < peak_indices.length; i += 1) {
-      peak_values.innerHTML += (peak_indices[i] * (audioData.sampleRate / fftSize)).toFixed(1);
-      if (i < peak_indices.length - 1) {
+    viewer.run_fft(fftSize, windowFunction);
+    const peak_frequencies = viewer.peak_frequencies(5);
+    for (let i = 0; i < peak_frequencies.length; i += 1) {
+      peak_values.innerHTML += peak_frequencies[i].toFixed(1);
+      if (i < peak_frequencies.length - 1) {
         peak_values.innerHTML += ",&nbsp;";
       }
     }
-    rust.plot_power_spectra_to_canvas(canvas, powers, audioData.sampleRate);
+    viewer.draw(canvas);
   });
 }).catch(console.error);
