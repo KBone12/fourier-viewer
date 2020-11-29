@@ -9,6 +9,17 @@
   <canvas width="800" height="600" id="canvas"></canvas>
   <p id="peak_values">Peak frequencies: </p>
   <input type="file" accept="audio/*" id="file"/>
+  <p>
+  <label>Window function: 
+    <select id="window_function">
+      <option value="Blackman">Blackman</input>
+      <option value="Hamming">Hamming</input>
+      <option value="Hann">Hann</input>
+      <option value="Rectangle" selected>Rectangle</input>
+    </select>
+  </label>
+  </p>
+  <button id="calculate">Calculate</button>
   <script src="index.js"></script>
 </body>
 </html>

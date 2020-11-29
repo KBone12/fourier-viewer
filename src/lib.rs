@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use plotters::{
     chart::ChartBuilder,
     drawing::IntoDrawingArea,
@@ -16,11 +18,46 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use web_sys::HtmlCanvasElement;
 
 #[wasm_bindgen]
-pub fn run_fft(input: &[f32], size: usize) -> Vec<f32> {
+pub enum WindowFunction {
+    Blackman,
+    Hamming,
+    Hann,
+    Rectangle,
+}
+
+impl WindowFunction {
+    pub fn generate(&self, length: usize) -> Vec<f32> {
+        match self {
+            WindowFunction::Blackman => (0..length)
+                .map(|i| {
+                    0.42 - 0.5 * (2.0 * PI * i as f32).cos()
+                        + 0.08 * (4.0 * PI * i as f32 / length as f32).cos()
+                })
+                .collect(),
+            WindowFunction::Hamming => (0..length)
+                .map(|i| 0.54 - 0.46 * (2.0 * PI * i as f32 / length as f32).cos())
+                .collect(),
+            WindowFunction::Hann => (0..length)
+                .map(|i| 0.5 - 0.5 * (2.0 * PI * i as f32 / length as f32).cos())
+                .collect(),
+            WindowFunction::Rectangle => {
+                vec![1.0; length]
+            }
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn run_fft(input: &[f32], size: usize, window_function: WindowFunction) -> Vec<f32> {
     let mut planner = FFTplanner::<f32>::new(false);
     let fft = planner.plan_fft(size);
 
-    let mut input = input.to_vec();
+    let window = window_function.generate(size);
+    let mut input: Vec<_> = input
+        .iter()
+        .zip(window.iter())
+        .map(|(x, w)| x * w)
+        .collect();
     input.resize(size, 0.0);
     let mut input: Vec<_> = input.iter().map(|f| Complex::new(*f, 0.0)).collect();
     let mut output = vec![Complex::zero(); size];
