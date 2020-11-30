@@ -108,7 +108,9 @@ impl FourierViewer {
                     .partial_cmp(&a.norm_sqr())
                     .expect("Contains NaN")
             });
-            Some(tmp[..num].iter().map(|(_, s)| s.arg()).collect())
+            let mut phases: Vec<_> = tmp[..num].iter().map(|(_, s)| s.arg()).collect();
+            unwrap_phase(&mut phases);
+            Some(phases)
         })
     }
 
@@ -209,7 +211,8 @@ impl FourierViewer {
                     BLUE.filled(),
                 ))
                 .expect("Can't draw a series");
-            let phases: Vec<_> = spectra.iter().map(|c| c.arg()).collect();
+            let mut phases: Vec<_> = spectra.iter().map(|c| c.arg()).collect();
+            unwrap_phase(&mut phases);
             let df = self.sample_rate / phases.len() as f32;
             let mut chart = ChartBuilder::on(&phase_area)
                 .x_label_area_size(50)
@@ -248,4 +251,41 @@ impl FourierViewer {
                 .expect("Can't draw a series");
         }
     }
+}
+
+fn unwrap_phase(phases: &mut [f32]) {
+    let diff: Vec<_> = phases
+        .iter()
+        .skip(1)
+        .scan(phases[0], |state, phase| {
+            let d = *phase - *state;
+            *state = *phase;
+            Some(d)
+        })
+        .map(|diff| {
+            let tmp = ((diff + PI) % (2.0 * PI)) - PI;
+            let tmp = if tmp == -PI && diff > 0.0 {
+                PI - diff
+            } else {
+                tmp - diff
+            };
+            if diff.abs() < PI {
+                0.0
+            } else {
+                tmp
+            }
+        })
+        .scan(0.0, |state, diff| {
+            *state += diff;
+            Some(*state)
+        })
+        .collect();
+    phases
+        .iter_mut()
+        .skip(1)
+        .zip(diff.iter())
+        .for_each(|(phase, diff)| {
+            *phase += diff;
+            *phase %= 2.0 * PI;
+        });
 }
