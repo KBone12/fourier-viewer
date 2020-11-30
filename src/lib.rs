@@ -52,6 +52,7 @@ impl WindowFunction {
 pub struct FourierViewer {
     audio_data: Vec<f32>,
     sample_rate: f32,
+    fft_planner: FFTplanner<f32>,
     spectra: Option<Vec<Complex<f32>>>,
 }
 
@@ -62,13 +63,13 @@ impl FourierViewer {
         Self {
             audio_data: audio_data.to_vec(),
             sample_rate,
+            fft_planner: FFTplanner::new(false),
             spectra: None,
         }
     }
 
     pub fn run_fft(&mut self, size: usize, window_function: WindowFunction) {
-        let mut planner = FFTplanner::<f32>::new(false);
-        let fft = planner.plan_fft(size);
+        let fft = self.fft_planner.plan_fft(size);
 
         let window = window_function.generate(size.min(self.audio_data.len()));
         let mut input: Vec<_> = self
