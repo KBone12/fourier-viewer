@@ -80,6 +80,7 @@ impl FourierViewer {
             .map(|(x, w)| x * w)
             .collect();
         input.resize(size, 0.0);
+        input.rotate_right((size - size.min(self.audio_data.len())) / 2);
         let mut input: Vec<_> = input.iter().map(|f| Complex::new(*f, 0.0)).collect();
         let mut output = vec![Complex::zero(); size];
         fft.process(&mut input, &mut output);
@@ -94,6 +95,20 @@ impl FourierViewer {
             let mut tmp: Vec<_> = spectra.iter().map(|c| c.norm_sqr()).enumerate().collect();
             tmp.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("Contains NaN"));
             Some(tmp[..num].iter().map(|(i, _)| *i as f32 * df).collect())
+        })
+    }
+
+    pub fn peak_phases(&self, num: usize) -> Option<Vec<f32>> {
+        self.spectra.as_ref().and_then(|spectra| {
+            let spectra: Vec<_> = spectra.iter().take(spectra.len() / 2).collect();
+            let num = num.min(spectra.len());
+            let mut tmp: Vec<_> = spectra.iter().enumerate().collect();
+            tmp.sort_by(|(_, a), (_, b)| {
+                (b.norm_sqr())
+                    .partial_cmp(&a.norm_sqr())
+                    .expect("Contains NaN")
+            });
+            Some(tmp[..num].iter().map(|(_, s)| s.arg()).collect())
         })
     }
 
@@ -150,9 +165,13 @@ impl FourierViewer {
             ))
             .expect("Can't draw a rectangle");
         if let Some(spectra) = self.spectra.as_ref() {
+            let areas = frequency_area.split_evenly((1, 2));
+            let power_area = &areas[0];
+            let phase_area = &areas[1];
+
             let powers: Vec<_> = spectra.iter().map(|c| c.norm_sqr()).collect();
             let df = self.sample_rate / powers.len() as f32;
-            let mut chart = ChartBuilder::on(&frequency_area)
+            let mut chart = ChartBuilder::on(&power_area)
                 .x_label_area_size(50)
                 .y_label_area_size(60)
                 .build_cartesian_2d(
@@ -185,6 +204,43 @@ impl FourierViewer {
                     powers
                         .iter()
                         .take(powers.len() / 2)
+                        .enumerate()
+                        .map(|(i, p)| (i, *p)),
+                    BLUE.filled(),
+                ))
+                .expect("Can't draw a series");
+            let phases: Vec<_> = spectra.iter().map(|c| c.arg()).collect();
+            let df = self.sample_rate / phases.len() as f32;
+            let mut chart = ChartBuilder::on(&phase_area)
+                .x_label_area_size(50)
+                .y_label_area_size(60)
+                .build_cartesian_2d(0..phases.len() / 2, -PI..PI)
+                .expect("Can't build a 2d Cartesian coordinate");
+            chart
+                .configure_mesh()
+                .x_labels(10)
+                .y_labels(10)
+                .disable_mesh()
+                .x_label_formatter(&|&v| {
+                    format!(
+                        "{:0.1}",
+                        if v < (phases.len() + 1) / 2 {
+                            v as f32 * df
+                        } else {
+                            -((phases.len() - v) as f32) * df
+                        }
+                    )
+                })
+                .y_label_formatter(&|v| format!("{:}", v))
+                .x_desc("Frequency [Hz]")
+                .y_desc("Phase [rad]")
+                .draw()
+                .expect("Can't draw axes");
+            chart
+                .draw_series(LineSeries::new(
+                    phases
+                        .iter()
+                        .take(phases.len() / 2)
                         .enumerate()
                         .map(|(i, p)| (i, *p)),
                     BLUE.filled(),

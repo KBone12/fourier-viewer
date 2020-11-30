@@ -42,19 +42,24 @@ import("../pkg/index.js").then(rust => {
       return;
     }
     const canvas = document.getElementById("canvas");
-    const peak_values = document.getElementById("peak_values");
+    const peak_frequencies_element = document.getElementById("peak_frequencies");
+    const peak_phases_element = document.getElementById("peak_phases");
 
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    peak_values.innerHTML = "Peak frequencies:&nbsp;";
+    peak_frequencies_element.innerHTML = "Peak frequencies:&nbsp;";
+    peak_phases_element.innerHTML = "Peak phases [deg]:&nbsp;";
 
     let fftSize = parseInt(fftSizeElement.value);
     let windowFunction = windowNameToWindowFunction(windowFunctionElement.value);
     viewer.run_fft(fftSize, windowFunction);
     const peak_frequencies = viewer.peak_frequencies(5);
+    const peak_phases = viewer.peak_phases(5);
     for (let i = 0; i < peak_frequencies.length; i += 1) {
-      peak_values.innerHTML += peak_frequencies[i].toFixed(1);
+      peak_frequencies_element.innerHTML += peak_frequencies[i].toFixed(1);
+      peak_phases_element.innerHTML += (peak_phases[i] / (2.0 * Math.PI) * 360.0).toFixed(1);
       if (i < peak_frequencies.length - 1) {
-        peak_values.innerHTML += ",&nbsp;";
+        peak_frequencies_element.innerHTML += ",&nbsp;";
+        peak_phases_element.innerHTML += ",&nbsp;";
       }
     }
     viewer.draw(canvas);
