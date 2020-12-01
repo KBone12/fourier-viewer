@@ -217,7 +217,7 @@ impl FourierViewer {
             let mut chart = ChartBuilder::on(&phase_area)
                 .x_label_area_size(50)
                 .y_label_area_size(60)
-                .build_cartesian_2d(0..phases.len() / 2, -PI..PI)
+                .build_cartesian_2d(0..phases.len() / 2, plotters::data::fitting_range(&phases))
                 .expect("Can't build a 2d Cartesian coordinate");
             chart
                 .configure_mesh()
@@ -286,6 +286,5 @@ fn unwrap_phase(phases: &mut [f32]) {
         .zip(diff.iter())
         .for_each(|(phase, diff)| {
             *phase += diff;
-            *phase %= 2.0 * PI;
         });
 }
